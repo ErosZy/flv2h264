@@ -4,6 +4,10 @@ const FLVDemux = require('flv-demux');
 
 const UNIT_MASK = Buffer.from([0x00, 0x00, 0x00, 0x01]);
 
+if (isBrowser) {
+  window.Buffer = window.Buffer || require('buffer/').Buffer;
+}
+
 class FLV2H264 extends EventEmitter {
   constructor() {
     super();
@@ -18,6 +22,7 @@ class FLV2H264 extends EventEmitter {
 
   tagHandler(tag) {
     if (tag.type == FLVDemux.VideoTag.TYPE) {
+      console.log(1);
       if (tag.data.AVCPacketType == 0) {
         let unit = tag.data.data;
         let configurationVersion = unit.readUInt8(0);

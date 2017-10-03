@@ -1,6 +1,6 @@
 {
   "name": "flv2h264",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "index.js",
   "scripts": {
     "start": "hjs-dev-server",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "buffer": "^5.0.8",
-    "flv-demux": "^0.0.2",
+    "flv-demux": "^0.0.5",
     "is-in-browser": "^1.1.3"
   }
 }
