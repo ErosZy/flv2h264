@@ -16,7 +16,7 @@ function start() {
     tmp.push(data.data);
   });
 
-  flv2h264.on('complete', () => {
+  flv2h264.on('video:complete', () => {
     fs.writeFileSync('../videos/sample.h264', Buffer.concat(tmp));
     console.log('test success, you can find file in videos/sample.h264');
   });
