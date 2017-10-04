@@ -21,7 +21,29 @@ class FLV2H264 extends EventEmitter {
   }
 
   tagHandler(tag) {
-    if (tag.type == FLVDemux.VideoTag.TYPE) {
+    if (tag.type == FLVDemux.DataTag.TYPE) {
+      this.emit('mediaInfo', tag.data);
+    } else if (tag.type == FLVDemux.AudioTag.TYPE) {
+      this.emit('audio:nalus', {
+        type: 'audio',
+        size: tag.size,
+        timestamp: tag.timestamp,
+        soundFormat: tag.data.soundFormat,
+        soundRate: tag.data.soundRate,
+        soundSize: tag.data.soundSize,
+        soundType: tag.data.soundType,
+        data: tag.data.data,
+        count: -1
+      });
+    } else if (tag.type == FLVDemux.VideoTag.TYPE) {
+      let params = {
+        size: tag.size,
+        timestamp: tag.timestamp,
+        frameType: tag.data.frameType,
+        frameType: tag.data.codecId,
+        frameType: tag.data.compositionTime
+      };
+
       if (tag.data.AVCPacketType == 0) {
         let unit = tag.data.data;
         let configurationVersion = unit.readUInt8(0);
@@ -44,7 +66,29 @@ class FLV2H264 extends EventEmitter {
           8 + sequenceParameterSetLength + 3 + pictureParameterSetLength
         );
 
-        this.emit('nalus', Buffer.concat([UNIT_MASK, sps, UNIT_MASK, pps]));
+        this.emit(
+          'video:nalus',
+          Object.assign(
+            {
+              type: 'sps',
+              count: 1,
+              data: Buffer.concat([UNIT_MASK, sps])
+            },
+            params
+          )
+        );
+
+        this.emit(
+          'video:nalus',
+          Object.assign(
+            {
+              type: 'pps',
+              count: 1,
+              data: Buffer.concat([UNIT_MASK, pps])
+            },
+            params
+          )
+        );
       } else if (tag.data.AVCPacketType == 1) {
         let size = tag.size - 5;
         let unit = tag.data.data;
@@ -60,9 +104,19 @@ class FLV2H264 extends EventEmitter {
           size -= this.lengthSizeMinusOne + naluLen;
         }
 
-        this.emit('nalus', Buffer.concat(nalus));
+        this.emit(
+          'video:nalus',
+          Object.assign(
+            {
+              type: 'video',
+              count: nalus.length,
+              data: Buffer.concat(nalus)
+            },
+            params
+          )
+        );
       } else if (tag.data.AVCPacketType == 2) {
-        this.emit('complete');
+        this.emit('video:complete');
       }
     }
   }
