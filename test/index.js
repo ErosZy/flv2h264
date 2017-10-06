@@ -9,16 +9,22 @@ function start() {
   let buf = Buffer.alloc(stat.size);
   fs.readSync(fd, buf, 0, stat.size);
 
-  let tmp = [];
+  let audios = [];
+  let videos = [];
   let flv2h264 = new FLV2H264();
 
+  flv2h264.on('audio:nalus', data => {
+    audios.push(data.data);
+  });
+
   flv2h264.on('video:nalus', data => {
-    tmp.push(data.data);
+    videos.push(data.data);
   });
 
   flv2h264.on('video:complete', () => {
-    fs.writeFileSync('../videos/sample.h264', Buffer.concat(tmp));
-    console.log('test success, you can find file in videos/sample.h264');
+    fs.writeFileSync('../videos/sample.acc', Buffer.concat(audios));
+    fs.writeFileSync('../videos/sample.h264', Buffer.concat(videos));
+    console.log('test success, you can find file in videos/sample.acc');
   });
 
   flv2h264.decode(buf);

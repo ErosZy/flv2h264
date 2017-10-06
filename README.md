@@ -13,10 +13,6 @@ flv2h264.on('audio:nalus', data => {
     // sth to do...
 });
 
-flv2h264.on('audio:complete', () => {
-    // sth to do..
-});
-
 flv2h264.on('video:nalus', data => {
     // sth to do...
 });

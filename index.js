@@ -11,6 +11,7 @@ if (isBrowser) {
 class FLV2H264 extends EventEmitter {
   constructor() {
     super();
+    this.audioSpecHeader = {};
     this.lengthSizeMinusOne = -1;
     this.demux = new FLVDemux.Decoder();
     this.demux.on('tag', this.tagHandler.bind(this));
@@ -24,17 +25,71 @@ class FLV2H264 extends EventEmitter {
     if (tag.type == FLVDemux.DataTag.TYPE) {
       this.emit('mediaInfo', tag.data);
     } else if (tag.type == FLVDemux.AudioTag.TYPE) {
-      this.emit('audio:nalus', {
-        type: 'audio',
-        size: tag.size,
-        timestamp: tag.timestamp,
-        soundFormat: tag.data.soundFormat,
-        soundRate: tag.data.soundRate,
-        soundSize: tag.data.soundSize,
-        soundType: tag.data.soundType,
-        data: tag.data.data,
-        count: -1
-      });
+      if (tag.data.AACPacketType == 0) {
+        let audioSpecificConfig = tag.data.data;
+        let audioObjectType = (audioSpecificConfig[0] & 0xf8) >> 3;
+        let samplingFrequencyIndex =
+          ((audioSpecificConfig[0] & 0x7) << 1) | (audioSpecificConfig[1] >> 7);
+        let channelConfig = (audioSpecificConfig[1] >> 3) & 0x0f;
+        let frameLengthFlag = (audioSpecificConfig[1] >> 2) & 0x01;
+        let dependsOnCoreCoder = (audioSpecificConfig[1] >> 1) & 0x01;
+        let extensionFlag = audioSpecificConfig[1] & 0x01;
+
+        this.audioSpecHeader = {
+          audioObjectType: audioObjectType,
+          samplingFrequencyIndex: samplingFrequencyIndex,
+          channelConfig: channelConfig,
+          frameLengthFlag: frameLengthFlag,
+          dependsOnCoreCoder: dependsOnCoreCoder,
+          extensionFlag: extensionFlag
+        };
+      } else if (tag.data.AACPacketType == 1) {
+        let {
+          audioObjectType,
+          samplingFrequencyIndex,
+          channelConfig
+        } = this.audioSpecHeader;
+
+        let adtsBody = tag.data.data;
+        let adtsHeader = Buffer.alloc(7);
+
+        adtsHeader[0] = 0xff; //syncword:0xfff                          高8bits
+        adtsHeader[1] = 0xf0; //syncword:0xfff                          低4bits
+        adtsHeader[1] |= 0 << 3; //MPEG Version:0 for MPEG-4,1 for MPEG-2  1bit
+        adtsHeader[1] |= 0 << 1; //Layer:0                                 2bits
+        adtsHeader[1] |= 1; //protection absent:1
+
+        adtsHeader[2] = (audioObjectType - 1) << 6; //profile:audioObjectType - 1                      2bits
+        adtsHeader[2] |= (samplingFrequencyIndex & 0x0f) << 2; //sampling frequency index:samplingFrequencyIndex  4bits
+        adtsHeader[2] |= 0 << 1; //private bit:0                                      1bit
+        adtsHeader[2] |= (channelConfig & 0x04) >> 2; //channel configuration:channelConfig
+
+        adtsHeader[3] = (channelConfig & 0x03) << 6; //channel configuration:channelConfig      低2bits
+        adtsHeader[3] |= 0 << 5; //original：0                               1bit
+        adtsHeader[3] |= 0 << 4; //home：0                                   1bit
+        adtsHeader[3] |= 0 << 3; //copyright id bit：0                       1bit
+        adtsHeader[3] |= 0 << 2; //copyright id start：0                     1bit
+
+        let adtsLen = adtsBody.byteLength + 7;
+        adtsHeader[3] |= (adtsLen & 0x1800) >> 11; //frame length：value   高2bits
+        adtsHeader[4] = (adtsLen & 0x7f8) >> 3; //frame length:value    中间8bits
+        adtsHeader[5] = (adtsLen & 0x7) << 5; //frame length:value    低3bits
+        adtsHeader[5] |= 0x1f; //buffer fullness:0x7ff 高5bits
+        adtsHeader[6] = 0xfc;
+
+        let body = Buffer.concat([adtsHeader, adtsBody]);
+        this.emit('audio:nalus', {
+          type: 'audio',
+          size: body.byteLength,
+          timestamp: tag.timestamp,
+          soundFormat: tag.data.soundFormat,
+          soundRate: tag.data.soundRate,
+          soundSize: tag.data.soundSize,
+          soundType: tag.data.soundType,
+          data: body,
+          count: 1
+        });
+      }
     } else if (tag.type == FLVDemux.VideoTag.TYPE) {
       let params = {
         size: tag.size,
