@@ -11,6 +11,7 @@ if (isBrowser) {
 class FLV2H264 extends EventEmitter {
   constructor() {
     super();
+    this.adtsHeader = null;
     this.audioSpecHeader = {};
     this.lengthSizeMinusOne = -1;
     this.demux = new FLVDemux.Decoder();
@@ -35,22 +36,6 @@ class FLV2H264 extends EventEmitter {
         let dependsOnCoreCoder = (audioSpecificConfig[1] >> 1) & 0x01;
         let extensionFlag = audioSpecificConfig[1] & 0x01;
 
-        this.audioSpecHeader = {
-          audioObjectType: audioObjectType,
-          samplingFrequencyIndex: samplingFrequencyIndex,
-          channelConfig: channelConfig,
-          frameLengthFlag: frameLengthFlag,
-          dependsOnCoreCoder: dependsOnCoreCoder,
-          extensionFlag: extensionFlag
-        };
-      } else if (tag.data.AACPacketType == 1) {
-        let {
-          audioObjectType,
-          samplingFrequencyIndex,
-          channelConfig
-        } = this.audioSpecHeader;
-
-        let adtsBody = tag.data.data;
         let adtsHeader = Buffer.alloc(7);
 
         adtsHeader[0] = 0xff; //syncword:0xfff                          高8bits
@@ -70,7 +55,19 @@ class FLV2H264 extends EventEmitter {
         adtsHeader[3] |= 0 << 3; //copyright id bit：0                       1bit
         adtsHeader[3] |= 0 << 2; //copyright id start：0                     1bit
 
+        let adtsLen = 7;
+        adtsHeader[3] |= (adtsLen & 0x1800) >> 11; //frame length：value   高2bits
+        adtsHeader[4] = (adtsLen & 0x7f8) >> 3; //frame length:value    中间8bits
+        adtsHeader[5] = (adtsLen & 0x7) << 5; //frame length:value    低3bits
+        adtsHeader[5] |= 0x1f; //buffer fullness:0x7ff 高5bits
+        adtsHeader[6] = 0xfc;
+
+        this.adtsHeader = adtsHeader;
+      } else if (tag.data.AACPacketType == 1) {
+        let adtsBody = tag.data.data;
+        let adtsHeader = new Buffer(this.adtsHeader);
         let adtsLen = adtsBody.byteLength + 7;
+
         adtsHeader[3] |= (adtsLen & 0x1800) >> 11; //frame length：value   高2bits
         adtsHeader[4] = (adtsLen & 0x7f8) >> 3; //frame length:value    中间8bits
         adtsHeader[5] = (adtsLen & 0x7) << 5; //frame length:value    低3bits

@@ -22,7 +22,7 @@ function start() {
   });
 
   flv2h264.on('video:complete', () => {
-    fs.writeFileSync('../videos/sample.acc', Buffer.concat(audios));
+    fs.writeFileSync('../videos/sample.aac', Buffer.concat(audios));
     console.log('test gen acc success, you can play file videos/sample.aac using vlc');
     fs.writeFileSync('../videos/sample.h264', Buffer.concat(videos));
     console.log('test gen h264 success, you can play file videos/sample.h264 vlc');
